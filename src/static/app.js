@@ -40,6 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let searchQuery = "";
   let currentDay = "";
   let currentTimeRange = "";
+  const sharePageUrl = `${window.location.origin}/static/index.html`;
 
   // Authentication state
   let currentUser = null;
@@ -63,6 +64,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const activeTimeFilter = document.querySelector(".time-filter.active");
     if (activeTimeFilter) {
       currentTimeRange = activeTimeFilter.dataset.time;
+    }
+  }
+
+  // Initialize activity search from shared links
+  function initializeShareFilterFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const sharedActivity = params.get("activity");
+
+    if (sharedActivity) {
+      searchQuery = sharedActivity;
+      searchInput.value = sharedActivity;
     }
   }
 
@@ -472,6 +484,96 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function getActivityShareUrl(activityName) {
+    const url = new URL(sharePageUrl);
+    url.searchParams.set("activity", activityName);
+    return url.toString();
+  }
+
+  function getActivityShareText(activityName, details) {
+    return `Check out ${activityName} at Mergington High School: ${formatSchedule(
+      details
+    )}.`;
+  }
+
+  async function copyToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const hiddenInput = document.createElement("textarea");
+    hiddenInput.value = text;
+    hiddenInput.setAttribute("readonly", "");
+    hiddenInput.style.position = "absolute";
+    hiddenInput.style.left = "-9999px";
+    document.body.appendChild(hiddenInput);
+    hiddenInput.select();
+    document.execCommand("copy");
+    document.body.removeChild(hiddenInput);
+  }
+
+  function openShareWindow(url) {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async function handleSocialShare(event) {
+    const button = event.currentTarget;
+    const { platform, activity } = button.dataset;
+    const details = allActivities[activity];
+
+    if (!details) {
+      showMessage("Could not share this activity right now.", "error");
+      return;
+    }
+
+    const shareUrl = getActivityShareUrl(activity);
+    const shareText = getActivityShareText(activity, details);
+
+    try {
+      if (platform === "copy") {
+        await copyToClipboard(shareUrl);
+        showMessage("Share link copied to your clipboard.", "success");
+        return;
+      }
+
+      if (platform === "native" && navigator.share) {
+        await navigator.share({
+          title: activity,
+          text: shareText,
+          url: shareUrl,
+        });
+        return;
+      }
+
+      const socialLinks = {
+        facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+          shareUrl
+        )}&quote=${encodeURIComponent(shareText)}`,
+        whatsapp: `https://wa.me/?text=${encodeURIComponent(
+          `${shareText} ${shareUrl}`
+        )}`,
+        x: `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+          shareText
+        )}&url=${encodeURIComponent(shareUrl)}`,
+        email: `mailto:?subject=${encodeURIComponent(
+          `Mergington activity: ${activity}`
+        )}&body=${encodeURIComponent(`${shareText}\n\n${shareUrl}`)}`,
+      };
+
+      const selectedLink = socialLinks[platform];
+      if (selectedLink) {
+        openShareWindow(selectedLink);
+      } else {
+        showMessage("This sharing option is not available.", "error");
+      }
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        showMessage("Failed to share activity. Please try again.", "error");
+      }
+    }
+  }
+
   // Function to render a single activity card
   function renderActivityCard(name, details) {
     const activityCard = document.createElement("div");
@@ -528,6 +630,21 @@ document.addEventListener("DOMContentLoaded", () => {
         <span class="tooltip-text">Regular meetings at this time throughout the semester</span>
       </p>
       ${capacityIndicator}
+      <div class="activity-share">
+        <span class="share-label">Share:</span>
+        <div class="share-buttons">
+          <button type="button" class="social-share-button" data-platform="facebook" data-activity="${name}" aria-label="Share ${name} on Facebook">Facebook</button>
+          <button type="button" class="social-share-button" data-platform="whatsapp" data-activity="${name}" aria-label="Share ${name} on WhatsApp">WhatsApp</button>
+          <button type="button" class="social-share-button" data-platform="x" data-activity="${name}" aria-label="Share ${name} on X">X</button>
+          <button type="button" class="social-share-button" data-platform="email" data-activity="${name}" aria-label="Share ${name} by email">Email</button>
+          ${
+            navigator.share
+              ? `<button type="button" class="social-share-button" data-platform="native" data-activity="${name}" aria-label="Share ${name} using your device">More</button>`
+              : ""
+          }
+          <button type="button" class="social-share-button" data-platform="copy" data-activity="${name}" aria-label="Copy link for ${name}">Copy Link</button>
+        </div>
+      </div>
       <div class="participants-list">
         <h5>Current Participants:</h5>
         <ul>
@@ -575,6 +692,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const deleteButtons = activityCard.querySelectorAll(".delete-participant");
     deleteButtons.forEach((button) => {
       button.addEventListener("click", handleUnregister);
+    });
+
+    // Add click handlers for share buttons
+    const shareButtons = activityCard.querySelectorAll(".social-share-button");
+    shareButtons.forEach((button) => {
+      button.addEventListener("click", handleSocialShare);
     });
 
     // Add click handler for register button (only when authenticated)
@@ -864,5 +987,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initialize app
   checkAuthentication();
   initializeFilters();
+  initializeShareFilterFromUrl();
   fetchActivities();
 });
