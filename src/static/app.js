@@ -24,6 +24,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("login-form");
   const closeLoginModal = document.querySelector(".close-login-modal");
   const loginMessage = document.getElementById("login-message");
+  const themeToggleButton = document.getElementById("theme-toggle-button");
+  const themeToggleText = document.getElementById("theme-toggle-text");
+  const themeToggleIcon = document.getElementById("theme-toggle-icon");
 
   // Activity categories with corresponding colors
   const activityTypes = {
@@ -43,6 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Authentication state
   let currentUser = null;
+  let currentTheme = "light";
 
   // Time range mappings for the dropdown
   const timeRanges = {
@@ -96,6 +100,24 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     fetchActivities();
+  }
+
+  function applyTheme(theme) {
+    currentTheme = theme === "dark" ? "dark" : "light";
+    document.body.classList.toggle("dark-mode", currentTheme === "dark");
+    themeToggleButton.setAttribute(
+      "aria-pressed",
+      currentTheme === "dark" ? "true" : "false"
+    );
+    themeToggleText.textContent =
+      currentTheme === "dark" ? "Light Mode" : "Dark Mode";
+    themeToggleIcon.textContent = currentTheme === "dark" ? "☀️" : "🌙";
+    localStorage.setItem("themePreference", currentTheme);
+  }
+
+  function initializeTheme() {
+    const savedTheme = localStorage.getItem("themePreference");
+    applyTheme(savedTheme || "light");
   }
 
   // Check if user is already logged in (from localStorage)
@@ -238,6 +260,9 @@ document.addEventListener("DOMContentLoaded", () => {
   loginButton.addEventListener("click", openLoginModal);
   logoutButton.addEventListener("click", logout);
   closeLoginModal.addEventListener("click", closeLoginModalHandler);
+  themeToggleButton.addEventListener("click", () => {
+    applyTheme(currentTheme === "dark" ? "light" : "dark");
+  });
 
   // Close login modal when clicking outside
   window.addEventListener("click", (event) => {
@@ -863,6 +888,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialize app
   checkAuthentication();
+  initializeTheme();
   initializeFilters();
   fetchActivities();
 });
